@@ -12,14 +12,15 @@ Sebuah aplikasi Android sederhana yang mendemonstrasikan manajemen state dan log
 ### Fitur Utama
 
 1. **Nilai Awal**: Dimulai dari 0
-2. **Tampilan Status Bilangan**: Menampilkan apakah nilai saat ini adalah ganjil atau genap
-3. **Riwayat Perubahan**: Menyimpan dan menampilkan 5 perubahan nilai terakhir dalam urutan terbaru ke terlama
-4. **Logika Khusus - Triple Zero Condition**: 
-   - Menghitung setiap **aksi tombol yang menghasilkan nilai 0**
-   - Ketika nilai mencapai 0 sebanyak **3 kali berturut-turut** (tanpa aksi yang menghasilkan nilai non-zero di antaranya)
-   - Tombol Tambah dan Kurang akan otomatis dinonaktifkan
-   - Dialog akan muncul dengan pesan: "Nilai 0 tercapai 3 kali berturut-turut"
-   - Menekan Reset akan mengatur ulang penghitung kejadian nol dan memperbarui nilai serta riwayat
+2. **Tampilan Status Bilangan**: Menampilkan nilai counter saat ini dalam ukuran besar
+3. **Zero Counter**: Menampilkan berapa kali nilai sudah menyentuh 0
+4. **Riwayat Perubahan**: Menyimpan dan menampilkan perubahan nilai dalam urutan terbaru
+5. **Logika Khusus - Triple Zero Condition**: 
+   - Menghitung **setiap kali nilai menyentuh 0**
+   - zeroCounter **tidak akan pernah direset** kecuali tombol Reset ditekan
+   - Ketika zeroCounter mencapai **3 kali**, tombol Tambah dan Kurang akan otomatis dinonaktifkan
+   - Dialog akan muncul dengan pesan: "Angka 0 dah nyentuh 3 kali!"
+   - Menekan Reset akan mengatur ulang semua state (counter, penghitung, riwayat, dan mengaktifkan kembali tombol)
 
 ## Arsitektur Teknis
 
@@ -31,10 +32,10 @@ Sebuah aplikasi Android sederhana yang mendemonstrasikan manajemen state dan log
 ## Struktur State
 
 ```dart
-int counter = 0;                 // Nilai bilangan bulat saat ini
-int zeroActionCount = 0;         // Penghitung aksi yang menghasilkan nilai 0 berturut-turut
-bool isDisabled = false;         // Status disabled untuk tombol Tambah/Kurang
-List<int> history = [];          // Riwayat 5 perubahan nilai terakhir
+int counter = 0;              // Nilai bilangan bulat saat ini
+int zeroCounter = 0;          // Penghitung berapa kali counter menyentuh 0
+bool isDisabled = false;      // Status disabled untuk tombol Tambah/Kurang
+List<int> history = [];       // Riwayat perubahan nilai
 ```
 
 ## Alur Logika Detail
@@ -42,60 +43,47 @@ List<int> history = [];          // Riwayat 5 perubahan nilai terakhir
 ### Saat Tambah atau Kurang Ditekan:
 
 1. **Update nilai counter**: `counter++` atau `counter--`
-2. **Update riwayat**: Tambahkan nilai baru ke awal list (maksimal 5 item)
-3. **Cek hasil aksi**:
-   - **Jika `counter == 0`**: `zeroActionCount++` (increment penghitung)
-   - **Jika `counter != 0`**: `zeroActionCount = 0` (reset penghitung karena putus)
-4. **Cek kondisi disable**:
-   - **Jika `zeroActionCount == 3`**: Disable tombol dan tampilkan dialog
+2. **Panggil `_afterAction()`** untuk proses setelah action:
+   - Tambahkan nilai counter ke riwayat (maksimal 5 item)
+   - **Cek apakah `counter == 0`**:
+     - **Jika YA**: `zeroCounter++` (increment penghitung tanpa ada kondisi untuk reset)
+     - **Jika TIDAK**: `zeroCounter` tidak berubah (tetap)
+   - **Cek apakah `zeroCounter == 3`**:
+     - **Jika YA**: Set `isDisabled = true` dan tampilkan dialog
 
 ### Saat Reset Ditekan:
 
 1. **Reset counter ke 0**
-2. **Reset `zeroActionCount` ke 0`** (penghitung aksi nol direset)
-3. **Reset `isDisabled` ke false`** (tombol kembali aktif)
+2. **Reset `zeroCounter` ke 0`** (penghitung kembali ke awal)
+3. **Reset `isDisabled` ke false`** (tombol Tambah dan Kurang aktif kembali)
 4. **Kosongkan riwayat**
-5. **Debug message**: Print pesan ke console untuk tracking
 
 ## Contoh Skenario Penggunaan
 
-### Skenario 1: Tidak Mencapai Triple Zero
+### Skenario: Mencapai Triple Zero
 
 ```
-Start: counter=0, zeroActionCount=0
+Start: counter=0, zeroCounter=0
 
-1. Tekan Tambah    → counter=1,  zeroActionCount=0 (bukan 0, reset)
-2. Tekan Kurang    → counter=0,  zeroActionCount=1 ✓ (aksi 1 menghasilkan 0)
-3. Tekan Tambah    → counter=1,  zeroActionCount=0 (bukan 0, reset - PUTUS)
-4. Tekan Kurang    → counter=0,  zeroActionCount=1 ✓ (aksi 1 mulai lagi)
-5. Tekan Kurang    → counter=-1, zeroActionCount=0 (bukan 0, reset - PUTUS)
+1. Tekan Tambah    → counter=1,  zeroCounter=0 (bukan 0, tidak increment)
+2. Tekan Kurang    → counter=0,  zeroCounter=1 ✓ (sentuh 0 - increment)
+3. Tekan Kurang    → counter=-1, zeroCounter=1 (bukan 0, tetap 1)
+4. Tekan Tambah    → counter=0,  zeroCounter=2 ✓ (sentuh 0 - increment)
+5. Tekan Kurang    → counter=-1, zeroCounter=2 (bukan 0, tetap 2)
+6. Tekan Tambah    → counter=0,  zeroCounter=3 ✓ (sentuh 0 - increment)
+   → DISABLE! Dialog muncul: "Angka 0 dah nyentuh 3 kali!"
+   → Tombol Tambah dan Kurang tidak bisa ditekan sampai Reset
 
-Hasil: Tidak pernah mencapai 3 berturut-turut ✗
+7. Tekan Reset     → counter=0, zeroCounter=0, isDisabled=false
+   → Semua state direset, siap dimulai lagi!
 ```
 
-### Skenario 2: Cara Mencapai Triple Zero
+### Karakteristik Logika:
 
-Untuk mencapai kondisi `zeroActionCount == 3`, **nilai harus menjadi 0 sebanyak 3 kali berturut-turut tanpa ada aksi yang menghasilkan nilai non-zero di antaranya**.
-
-Contoh yang BERHASIL trigger disable:
-```
-Misal start dari counter=2:
-
-1. Tekan Kurang    → counter=1,  zeroActionCount=0
-2. Tekan Kurang    → counter=0,  zeroActionCount=1 ✓ (aksi 1)
-3. Tekan Kurang    → counter=-1, zeroActionCount=0 (bukan 0, reset)
-
-TIDAK BISA dengan urutan ini. Perlu urutan yang menghasilkan 0 setiap aksi.
-```
-
-Skenario yang MUNGKIN:
-```
-Jika counter sudah di posisi yang "strategis":
-
-1. Dari counter=1, Tekan Kurang → counter=0, zeroActionCount=1
-2. Dari counter=-1, Tekan Tambah → counter=0, zeroActionCount=2
-3. Dari counter=-1, Tekan Tambah → counter=0, zeroActionCount=3 → DISABLE! 🔒
-```
+- **Setiap sentuhan 0** → selalu increment `zeroCounter`
+- **Tidak ada reset** kecuali tombol Reset ditekan
+- **Perjalanan ke 0** bisa dari nilai positif atau negatif
+- **Setelah zeroCounter mencapai 3 kali** → semua button "terkunci/disabled" sampai Reset
 
 ## Build dan Instalasi
 
@@ -111,7 +99,7 @@ Jika counter sudah di posisi yang "strategis":
 # Navigate ke project directory
 cd test
 
-# Clean build lama (PENTING untuk menghapus cache state)
+# Clean build lama (untuk menghapus cache)
 flutter clean
 
 # Get dependencies
@@ -135,17 +123,9 @@ flutter devices
 # Install APK
 flutter install
 
-# Atau langsung jalankan aplikasi (TANPA hot reload)
+# Atau langsung jalankan aplikasi
 flutter run --release
 ```
-
-### ⚠️ PENTING: Cara Test yang Benar
-
-**JANGAN gunakan hot reload** (`r` di terminal) karena state aplikasi akan tetap tertinggal. Gunakan:
-
-- **Full Restart** (`R` di terminal) - untuk mereset state aplikasi
-- **flutter run --release** - untuk test yang fresh
-- **Rebuild APK dan reinstall** - untuk test yang paling akurat
 
 ## Informasi File
 
@@ -169,40 +149,16 @@ dependencies:
   cupertino_icons: ^1.0.8
 ```
 
-## Testing dan Debugging
-
-### Debug Output
-
-Aplikasi menampilkan debug messages di console saat melakukan aksi:
-
-```
-DEBUG: Tambah - counter = 0, zeroActionCount = 1
-DEBUG: Kurang - counter = -1, zeroActionCount = 0
-DEBUG: Reset - semua state direset
-```
-
-Untuk melihat debug output, jalankan:
-
-```bash
-flutter run --release -v
-```
-
-Atau gunakan emulator dan lihat di Logcat Android Studio.
-
-### Widget Tests
-
-Untuk menjalankan widget tests:
-
-```bash
-flutter test
-```
-
 ## User Interface
 
-- **Display Area**: Menampilkan nilai counter besar (60pt), status ganjil/genap (24pt), dan penghitung aksi zero (18pt)
-- **Control Buttons**: Tiga tombol dengan disabled state visual (tombol tampak faded saat disabled)
+- **Display Area**: 
+  - Nilai counter ditampilkan besar (60pt, bold)
+  - Penghitung zero sentiment ditampilkan dengan warna orange (18pt)
+- **Control Buttons**: Tiga tombol (Kurang, Reset, Tambah)
+  - Tombol Kurang dan Tambah: akan disabled secara visual ketika `isDisabled = true`
+  - Tombol Reset: selalu aktif
 - **History Box**: Container dengan border yang menampilkan list riwayat
-- **Status Message**: Pesan merah jelas saat tombol disabled
+- **Status Message**: Pesan merah jelas saat tombol disabled ("Tombol dinonaktifkan, tekan Reset")
 
 ## Logika Pemrograman - Penjelasan Kode
 
@@ -213,24 +169,41 @@ void tambah() {
   if (isDisabled) return;  // Jika disabled, tidak lakukan apa-apa
   
   setState(() {
-    counter++;              // Increment value
-    history.insert(0, counter);  // Tambah ke riwayat
-    
-    // Cek hasil aksi
-    if (counter == 0) {
-      zeroActionCount++;    // Increment karena hasilnya 0
-      print('DEBUG: Tambah - counter = $counter, zeroActionCount = $zeroActionCount');
-    } else {
-      zeroActionCount = 0;  // Reset karena hasilnya bukan 0
-      print('DEBUG: Tambah - counter = $counter, zeroActionCount direset ke 0');
-    }
-    
-    // Jika sudah 3 kali berturut-turut
-    if (zeroActionCount == 3) {
-      isDisabled = true;
-      _showZeroDialog();
-    }
+    counter++;             // Increment value
+    _afterAction();        // Proses setelah action
   });
+}
+
+void kurang() {
+  if (isDisabled) return;  // Jika disabled, tidak lakukan apa-apa
+  
+  setState(() {
+    counter--;             // Decrement value
+    _afterAction();        // Proses setelah action
+  });
+}
+```
+
+### Fungsi `_afterAction()`
+
+```dart
+void _afterAction() {
+  // Tambah ke riwayat
+  history.insert(0, counter);
+  if (history.length > 5) {
+    history.removeLast();
+  }
+
+  // Cek apakah menyentuh 0
+  if (counter == 0) {
+    zeroCounter++;        // Selalu increment jika sentuh 0
+  }
+
+  // Cek apakah sudah 3 kali
+  if (zeroCounter == 3) {
+    isDisabled = true;    // Disable tombol
+    _showDialog();        // Tampilkan dialog
+  }
 }
 ```
 
@@ -239,32 +212,44 @@ void tambah() {
 ```dart
 void reset() {
   setState(() {
-    counter = 0;            // Reset nilai
-    zeroActionCount = 0;    // Reset penghitung aksi nol
-    isDisabled = false;     // Aktifkan kembali tombol
-    history.clear();        // Kosongkan riwayat
-    print('DEBUG: Reset - semua state direset');
+    counter = 0;          // Reset nilai ke 0
+    zeroCounter = 0;      // Reset penghitung ke 0
+    isDisabled = false;   // Aktifkan tombol kembali
+    history.clear();      // Kosongkan riwayat
   });
 }
 ```
 
-### Fungsi `getStatus()`
+### Fungsi `_showDialog()`
 
 ```dart
-String getStatus() {
-  return counter % 2 == 0 ? 'Genap' : 'Ganjil';
+void _showDialog() {
+  showDialog(
+    context: context,
+    barrierDismissible: false,  // User harus klik OK, tidak bisa klik di luar dialog
+    builder: (_) {
+      return AlertDialog(
+        title: const Text('Alert!'),
+        content: const Text('Angka 0 dah nyentuh 3 kali!'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      );
+    },
+  );
 }
 ```
-
-Mengembalikan string 'Genap' jika counter habis dibagi 2, 'Ganjil' sebaliknya.
 
 ## Catatan Pengembangan
 
 - State disimpan sepenuhnya di memori aplikasi
 - Tidak ada penyimpanan data persisten antar session
 - UI diperbarui secara real-time menggunakan `setState()`
-- Dialog non-dismissible untuk memastikan user membaca pesan kondisi triple zero
-- Debug prints tersedia untuk tracking di console
+- Dialog non-dismissible untuk memastikan user membaca pesan
+- Riwayat hanya menyimpan maksimal 5 nilai terakhir
 - Tidak menggunakan package eksternal untuk state management (hanya built-in Flutter)
 
 ## Changelog
@@ -272,10 +257,9 @@ Mengembalikan string 'Genap' jika counter habis dibagi 2, 'Ganjil' sebaliknya.
 ### Version 1.0.0 (31 December 2025)
 - ✅ Initial release
 - ✅ Implementasi logic counter dengan 3 button (Tambah, Kurang, Reset)
-- ✅ Riwayat 5 perubahan terakhir
+- ✅ Riwayat perubahan nilai
+- ✅ Zero Counter yang tidak direset kecuali Reset ditekan
 - ✅ Triple zero condition dengan disable tombol dan dialog
-- ✅ Tampilan ganjil/genap
-- ✅ Debug logging
 - ✅ APK build untuk Android x86_64
 
 ## Lisensi
@@ -287,3 +271,4 @@ Bagian dari Studi Kasus II: "Buttons of Logic"
 **Build Date**: 31 December 2025
 **Flutter Version**: ^3.9.0
 **Platform**: Android (x86_64 Emulator, ARM64 Device)
+**Logic Version**: Triple Zero (Simple Counter - No Auto Reset)
